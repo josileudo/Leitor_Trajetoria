@@ -18,7 +18,7 @@ const char *password = "4vo56255";
 //const char* ssid = "ESP32-Acess-Point";
 //const char* password = "123456789";
 
-IPAddress ip(192, 168, 0, 8);
+IPAddress ip(192, 168, 1, 8);
 IPAddress gateway(192, 168, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
 
