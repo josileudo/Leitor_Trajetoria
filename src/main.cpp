@@ -18,6 +18,10 @@ const char *password = "4vo56255";
 //const char* ssid = "ESP32-Acess-Point";
 //const char* password = "123456789";
 
+IPAddress ip(192, 168, 0, 8);
+IPAddress gateway(192, 168, 0, 1);
+IPAddress subnet(255, 255, 255, 0);
+
 WiFiServer server(80);
 
 #define BMP_SCK (13)
@@ -47,6 +51,7 @@ void setup()
   Serial.print("Conectando...");
   Serial.println(ssid);
   WiFi.begin(ssid, password); // Utilizando o WiFi
+  WiFi.config(ip, gateway, subnet);
   //WiFi.softAP(ssid, password); // ESP32 roteando
 
   while (WiFi.status() != WL_CONNECTED)
