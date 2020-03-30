@@ -14,7 +14,7 @@
 const char *ssid = "brisa-248210";
 const char *password = "4vo56255";
 
-//Roteando o o ESP32
+//Roteando o ESP32
 //const char* ssid = "ESP32-Acess-Point";
 //const char* password = "123456789";
 
@@ -64,6 +64,7 @@ void setup()
   Serial.print("WIFI Conectado");
   Serial.print("Endereço de IP: ");
   Serial.print(WiFi.localIP()); // Endereço do WIFI
+
   Serial.print(ssid);
   server.begin();
 
@@ -225,8 +226,9 @@ void loop()
   const size_t capacity = JSON_ARRAY_SIZE(6) + JSON_OBJECT_SIZE(6) + 60;
   DynamicJsonDocument root(capacity);
 
-  String s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n <!DOCTYPE html><html><head><title>Leitor de Trajetórias ESP32</title><style>";
-
+  String s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n <!DOCTYPE html><html><head><title>Leitor de Trajetorias ESP32</title><style>";
+  s += ("Access-Control-Allow-Origin: *");
+  s += ("Access-Control-Allow-Methods: GET");
   root["Hora"] = timeStr;
   root["Data"] = dateStr;
   root["Temperatura"] = tempStr;
@@ -238,9 +240,9 @@ void loop()
   location.add(lngStr);
 
   serializeJson(root, client);
-
   Serial.println("Client desconectado");
   Serial.println("");
+  client.println(s);
 
   delay(1000);
 }
