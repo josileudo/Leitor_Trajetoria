@@ -9,7 +9,10 @@
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
 #include <iostream>
+#include <WebSocketsServer.h>
+#include <ESPAsyncWebServer.h>
 #include <HTTPClient.h>
+
 //Conectado na minha rede:
 const char *ssid = "brisa-248210";
 const char *password = "4vo56255";
@@ -21,8 +24,6 @@ const char *password = "4vo56255";
 IPAddress ip(192, 168, 1, 8);
 IPAddress gateway(192, 168, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
-
-WiFiServer server(80);
 
 #define BMP_SCK (13)
 #define BMP_MISO (12)
@@ -40,6 +41,8 @@ SoftwareSerial gpsSerial(RXPin, TXPin);
 float latitude, longitude, hora, minutos, segundos;
 String latStr, lngStr, dateStr, dayStr, timeStr, monthStr, yearStr, tempStr, altStr, presStr;
 int hour, minute, second, pm;
+
+WiFiServer server(80);
 
 void setup()
 {
@@ -242,7 +245,6 @@ void loop()
   serializeJson(root, client);
   Serial.println("Client desconectado");
   Serial.println("");
-  client.println(s);
 
   delay(1000);
 }
