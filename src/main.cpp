@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <Adafruit_sensor.h>
 #include <Adafruit_BMP280.h>
 #include <SPI.h>
@@ -9,14 +8,24 @@
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
 #include <iostream>
-#include <WebSocketsServer.h>
-#include <ESPAsyncWebServer.h>
 #include <HTTPClient.h>
+#include <PubSubClient.h>
+
+#define TOPICO_PUBLISH_TEMPERATURA "topico_sensor_temperatura"
+#define TOPICO_PUBLISH_LATITUDE "topico_gps_latitude"
+#define TOPICO_PUBLISH_LONGITUDE "topico_gps_longitude"
+#define TOPICO_PUBLISH_PRESSAO "topico_sensor_pressao"
+#define TOPICO_PUBLISH_ALTITUDE "topico_sensor_altitude"
+#define ID_MQTT "leitor_trajetoria"
 
 //Conectado na minha rede:
 const char *ssid = "brisa-248210";
 const char *password = "4vo56255";
+const char *BROKER_MQTT = "iot.eclipse.org";
+int BROKER_PORT = 1883;
 
+WiFiClient espClient;
+PubSubClient MQTT(espClient);
 //Roteando o ESP32
 //const char* ssid = "ESP32-Acess-Point";
 //const char* password = "123456789";
@@ -42,41 +51,17 @@ float latitude, longitude, hora, minutos, segundos;
 String latStr, lngStr, dateStr, dayStr, timeStr, monthStr, yearStr, tempStr, altStr, presStr;
 int hour, minute, second, pm;
 
-WiFiServer server(80);
+float latitude_longitude(void);
+float barometro(void);
+void initWiFi(void);
+void initMQTT(void);
+void mqtt_callback(char *topic, byte *payload, unsigned int length);
+void reconnectMQTT(void);
+void reconnectWiFi(void);
+void VerificaConexoesWiFiMQTT(void);
 
-void setup()
+float barometro(void)
 {
-
-  Serial.begin(115200);
-  gpsSerial.begin(GPSBaud);
-  Serial.println(F("BMP280 Test"));
-
-  Serial.print("Conectando...");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password); // Utilizando o WiFi
-  WiFi.config(ip, gateway, subnet);
-  //WiFi.softAP(ssid, password); // ESP32 roteando
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.print(".");
-    delay(500);
-  }
-
-  Serial.print("");
-  Serial.print("WIFI Conectado");
-  Serial.print("Endereço de IP: ");
-  Serial.print(WiFi.localIP()); // Endereço do WIFI
-
-  Serial.print(ssid);
-  server.begin();
-
-  /*Conectando ao IP do ESP32
-  IPAddress IP = WiFi.softAPIP();
-  Serial.println(IP);
-  server.begin();*/
-
-  //conexão com BMP280
   if (!bmp.begin(0x76))
   {
     Serial.println(F("Sensor BMP280 Não encontrado..."));
@@ -90,11 +75,25 @@ void setup()
       Adafruit_BMP280::SAMPLING_X16,
       Adafruit_BMP280::FILTER_X16,
       Adafruit_BMP280::STANDBY_MS_500);
+
+  Serial.print(F("Temperatura = "));
+  Serial.println(bmp.readTemperature());
+  tempStr = String(bmp.readTemperature());
+
+  Serial.print(F("Pressão = "));
+  Serial.println(bmp.readPressure());
+  presStr = (bmp.readPressure());
+
+  Serial.print(F("Altitude = "));
+  Serial.println(bmp.readAltitude());
+  altStr = (bmp.readAltitude());
+
+  Serial.println();
+  delay(2000);
 }
 
-void loop()
+float latitude_longitude(void)
 {
-
   // -> Configurando GPS <-
   while (gpsSerial.available() > 0)
     if (gps.encode(gpsSerial.read()))
@@ -198,40 +197,109 @@ void loop()
           ;
       }
     }
-  // BARÔMETRO
-  Serial.print(F("Temperatura = "));
-  Serial.println(bmp.readTemperature());
-  tempStr = String(bmp.readTemperature());
+}
 
-  Serial.print(F("Pressão = "));
-  Serial.println(bmp.readPressure());
-  presStr = (bmp.readPressure());
+void initWiFi(void)
+{
+  delay(10);
+  Serial.print("Conectando...");
+  Serial.println(ssid);
+  reconnectWiFi();
+}
 
-  Serial.print(F("Altitude = "));
-  Serial.println(bmp.readAltitude());
-  altStr = (bmp.readAltitude());
+void initMQTT(void)
+{
+  MQTT.setServer(BROKER_MQTT, BROKER_PORT);
+  MQTT.setCallback(mqtt_callback);
+}
 
-  Serial.println();
-  delay(2000);
-
-  // -> Enviando dados para o cliente <-
-  WiFiClient client = server.available();
-  if (!client)
+void mqtt_callback(char *topic, byte *payload, unsigned int length)
+{
+  String msg;
+  for (int i = 0; i < length; i++)
   {
+    char c = (char)payload[i];
+    msg += c;
+  }
+  Serial.print("Mensagem no MQTT: ");
+  Serial.println(msg);
+}
+
+void reconnectMQTT(void)
+{
+  while (!MQTT.connected())
+  {
+    Serial.print("Tentando se conectar ao broker MQTT: ");
+    Serial.println(BROKER_MQTT);
+    if (MQTT.connect(ID_MQTT))
+    {
+      Serial.println("Conectado com sucesso ao broker MQTT!");
+    }
+    else
+    {
+      Serial.println("Falha ao conectar ao broker.");
+      Serial.println("Havera nova tentativa de conexao em 2s");
+      delay(2000);
+    }
+  }
+}
+
+void VerificaConexoesWiFiMQTT(void)
+{
+  if (!MQTT.connected())
+    reconnectMQTT();
+  reconnectWiFi();
+}
+
+void reconnectWiFi(void)
+{
+  if (WiFi.status() == WL_CONNECTED)
     return;
+  WiFi.begin(ssid, password); // Utilizando o WiFi
+  WiFi.config(ip, gateway, subnet);
+  //WiFi.softAP(ssid, password); // ESP32 roteando
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(500);
   }
 
-  /*Serial.println("Novo cliente se conectou!");
-  while (!client.available())
-  {
-    delay(1);
-  }*/
+  Serial.print("");
+  Serial.print("WIFI Conectado");
+  Serial.print("Endereço de IP: ");
+  //Serial.print(WiFi.localIP()); // Endereço do WIFI
+  Serial.print(ssid);
+
+  /*Conectando ao IP do ESP32
+  IPAddress IP = WiFi.softAPIP();
+  Serial.println(IP);
+  server.begin();*/
+}
+
+void setup()
+{
+
+  Serial.begin(115200);
+  gpsSerial.begin(GPSBaud);
+  Serial.println(F("BMP280 Test"));
+
+  initWiFi();
+  initMQTT();
+  //conexão com BMP280
+}
+void loop()
+{
+  char temperatura_str[10] = {0};
+
+  sprintf(temperatura_str, "", tempStr);
+  VerificaConexoesWiFiMQTT();
+
+  MQTT.publish(TOPICO_PUBLISH_TEMPERATURA, temperatura_str);
+  MQTT.loop();
+
   const size_t capacity = JSON_ARRAY_SIZE(6) + JSON_OBJECT_SIZE(6) + 60;
   DynamicJsonDocument root(capacity);
 
-  String s = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n <!DOCTYPE html><html><head><title>Leitor de Trajetorias ESP32</title><style>";
-  s += ("Access-Control-Allow-Origin: *");
-  s += ("Access-Control-Allow-Methods: GET");
   root["Hora"] = timeStr;
   root["Data"] = dateStr;
   root["Temperatura"] = tempStr;
@@ -242,7 +310,7 @@ void loop()
   location.add(latStr);
   location.add(lngStr);
 
-  serializeJson(root, client);
+  //serializeJson(root);
   Serial.println("Client desconectado");
   Serial.println("");
 
